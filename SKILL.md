@@ -3,9 +3,9 @@ name: migration-and-data-safety
 description: >-
   Use for schema changes, backfills, dual-writes, and RLS/policy migrations.
   Expand→migrate→contract; irreversible sweeps off/warn/enforced (default warn);
-  never expand+contract in one deploy; assert prod connection role (superuser
-  bypasses RLS even under FORCE); don't trust SQLite suites for Postgres-only
-  controls.
+  never expand+contract in one deploy; assert prod connection role (superusers
+  and BYPASSRLS roles always bypass RLS; FORCE subjects ordinary owners to RLS);
+  don't trust SQLite suites for Postgres-only controls.
 ---
 # Migration and Data Safety
 
@@ -46,11 +46,11 @@ Document the flag name, default (`warn`), and owner. Client-visible responses mu
 
 ## RLS and roles
 
-- **Superuser / owner bypasses RLS** even under `FORCE ROW LEVEL SECURITY` for table owners in common Postgres setups — treat connection role as part of the security boundary.
+- **RLS bypass depends on role privileges:** superusers and roles with `BYPASSRLS` always bypass RLS. Table owners normally bypass RLS, but `ALTER TABLE ... FORCE ROW LEVEL SECURITY` makes ordinary table owners subject to policies. `FORCE` does not override superuser or `BYPASSRLS` privileges — treat the connection role as part of the security boundary.
 - In production: **assert connection role** is the least-privilege app role, not superuser/migrator.
 - Migrator role may bypass by design; app runtime must not use migrator credentials.
 
-**Failure mode rls-theater**: FORCE RLS enabled; app connects as owner/superuser → policies never apply; SQLite or unit mocks still green.
+**Failure mode rls-theater**: RLS enabled (even with `FORCE`), but the app connects as superuser or with `BYPASSRLS` → policies never apply; a table owner can also bypass unless `FORCE` is set. SQLite or unit mocks still green.
 
 ### Assert role (pattern)
 
